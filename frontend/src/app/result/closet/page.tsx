@@ -10,15 +10,22 @@ const ITEM_ORDER: Record<string, number> = { 아우터: 0, 이너: 1, 하의: 2 
 
 interface WardrobeItemInput {
   id: string;
-  image_base64: string;
+  image_url: string | null;
+  image_base64: string | null;
   item_type: string;
 }
 
 interface CoordinateSession {
-  selected_item: { image_base64: string; item_type: string };
+  selected_item: { image_url: string | null; image_base64: string | null; item_type: string };
   wardrobe_items: WardrobeItemInput[];
   aesthetic: string;
   personal_color: string;
+}
+
+function resolveImageSrc(item: { image_url?: string | null; image_base64?: string | null }): string {
+  if (item.image_url) return item.image_url;
+  if (item.image_base64) return `data:image/png;base64,${item.image_base64}`;
+  return "";
 }
 
 interface Coordination {
@@ -34,9 +41,9 @@ interface ClosetResult {
 
 // 코디에 포함되는 아이템 목록 (선택한 옷 + 추천 1개) — item_type 순 정렬
 function buildCoordiItems(
-  selectedItem: { image_base64: string; item_type: string },
+  selectedItem: { image_url: string | null; image_base64: string | null; item_type: string },
   recommendedItems: WardrobeItemInput[]
-): Array<{ id: string; image_base64: string; item_type: string }> {
+): Array<{ id: string; image_url: string | null; image_base64: string | null; item_type: string }> {
   const all = [
     { id: "__selected__", ...selectedItem },
     ...recommendedItems,
@@ -83,7 +90,7 @@ function CoordiCard({
         {coordiItems.map((item) => (
           <div key={item.id} className="flex flex-col items-center gap-1">
             <img
-              src={`data:image/png;base64,${item.image_base64}`}
+              src={resolveImageSrc(item)}
               alt={item.item_type}
               className={`${imgClass} object-contain`}
             />
@@ -121,13 +128,44 @@ export default function ClosetResultPage() {
     fetchCoordinate(parsed);
   }, []);
 
+  /** URL만 있고 base64가 없는 아이템을 fetch해서 base64로 변환 */
+  const resolveBase64 = async (item: { image_url: string | null; image_base64: string | null }): Promise<string> => {
+    if (item.image_base64) return item.image_base64;
+    if (item.image_url) {
+      const res = await fetch(item.image_url);
+      const blob = await res.blob();
+      return await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve((reader.result as string).split(",")[1]);
+        reader.readAsDataURL(blob);
+      });
+    }
+    return "";
+  };
+
   const fetchCoordinate = async (sess: CoordinateSession) => {
     setLoading(true);
     try {
+      const [selectedBase64, ...wardrobeBase64List] = await Promise.all([
+        resolveBase64(sess.selected_item),
+        ...sess.wardrobe_items.map((w) => resolveBase64(w)),
+      ]);
+
+      const payload = {
+        selected_item: { image_base64: selectedBase64, item_type: sess.selected_item.item_type },
+        wardrobe_items: sess.wardrobe_items.map((w, i) => ({
+          id: w.id,
+          image_base64: wardrobeBase64List[i],
+          item_type: w.item_type,
+        })),
+        aesthetic: sess.aesthetic,
+        personal_color: sess.personal_color,
+      };
+
       const res = await fetch(`${API_URL}/api/closet-coordinate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(sess),
+        body: JSON.stringify(payload),
       });
       const data: ClosetResult = await res.json();
       setResult(data);

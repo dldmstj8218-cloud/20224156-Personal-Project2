@@ -7,9 +7,23 @@ import { Loader2, ArrowLeft, ExternalLink } from "lucide-react";
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 interface CoordinateSession {
-  selected_item: { image_base64: string; item_type: string };
+  selected_item: { image_url: string | null; image_base64: string | null; item_type: string };
   aesthetic: string;
   personal_color: string;
+}
+
+async function resolveBase64(item: { image_url?: string | null; image_base64?: string | null }): Promise<string> {
+  if (item.image_base64) return item.image_base64;
+  if (item.image_url) {
+    const res = await fetch(item.image_url);
+    const blob = await res.blob();
+    return await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve((reader.result as string).split(",")[1]);
+      reader.readAsDataURL(blob);
+    });
+  }
+  return "";
 }
 
 interface ShopRecommendation {
@@ -56,11 +70,12 @@ export default function ShopResultPage() {
   const fetchShop = async (sess: CoordinateSession) => {
     setLoading(true);
     try {
+      const base64 = await resolveBase64(sess.selected_item);
       const res = await fetch(`${API_URL}/api/shop-search`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          selected_item_base64: sess.selected_item.image_base64,
+          selected_item_base64: base64,
           item_type: sess.selected_item.item_type,
           aesthetic: sess.aesthetic,
           personal_color: sess.personal_color,
@@ -109,7 +124,7 @@ export default function ShopResultPage() {
           <div className="mb-8 flex items-center gap-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
             <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gray-50">
               <img
-                src={`data:image/png;base64,${session.selected_item.image_base64}`}
+                src={session.selected_item.image_url ?? (session.selected_item.image_base64 ? `data:image/png;base64,${session.selected_item.image_base64}` : "")}
                 alt={session.selected_item.item_type}
                 className="h-full w-auto object-contain"
               />

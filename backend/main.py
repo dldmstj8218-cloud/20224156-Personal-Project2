@@ -17,6 +17,7 @@ import base64
 import io
 import json
 import os
+import uuid
 from datetime import datetime
 
 from fastapi import FastAPI, File, Form, UploadFile, HTTPException
@@ -341,13 +342,42 @@ async def analyze_outfit(
 class WardrobeProcessResponse(BaseModel):
     success: bool
     processed_image_base64: Optional[str] = None
+    image_url: Optional[str] = None
     item_type: Optional[str] = None
     error: Optional[str] = None
 
 
+def _upload_to_supabase(image_bytes: bytes) -> Optional[str]:
+    """
+    처리된 이미지를 Supabase Storage에 업로드하고 public URL을 반환.
+    환경 변수가 없거나 업로드 실패 시 None 반환.
+    """
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    bucket = os.getenv("SUPABASE_STORAGE_BUCKET", "wardrobe-images")
+
+    if not supabase_url or not supabase_key:
+        return None
+
+    try:
+        from supabase import create_client
+
+        client = create_client(supabase_url, supabase_key)
+        file_name = f"{uuid.uuid4()}.png"
+        client.storage.from_(bucket).upload(
+            file_name,
+            image_bytes,
+            {"content-type": "image/png"},
+        )
+        public_url = client.storage.from_(bucket).get_public_url(file_name)
+        return public_url
+    except Exception:
+        return None
+
+
 @app.post("/api/wardrobe/process", response_model=WardrobeProcessResponse)
 async def process_wardrobe_item(file: UploadFile = File(...)):
-    """rembg 배경 제거 + Gemini로 item_type 판별"""
+    """rembg 배경 제거 + Gemini로 item_type 판별 + Supabase Storage 업로드"""
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="이미지 파일을 업로드해주세요.")
 
@@ -361,7 +391,8 @@ async def process_wardrobe_item(file: UploadFile = File(...)):
 
         buffer = io.BytesIO()
         output_img.save(buffer, format="PNG")
-        processed_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+        image_bytes = buffer.getvalue()
+        processed_base64 = base64.b64encode(image_bytes).decode("utf-8")
 
         gemini_key = _get_gemini_key()
         if not gemini_key:
@@ -394,9 +425,13 @@ async def process_wardrobe_item(file: UploadFile = File(...)):
         if item_type == "바지":  # 구버전 응답 대비 변환
             item_type = "하의"
 
+        # Supabase Storage 업로드 (실패해도 base64 폴백으로 동작)
+        image_url = await asyncio.to_thread(_upload_to_supabase, image_bytes)
+
         return WardrobeProcessResponse(
             success=True,
             processed_image_base64=processed_base64,
+            image_url=image_url,
             item_type=item_type,
         )
 

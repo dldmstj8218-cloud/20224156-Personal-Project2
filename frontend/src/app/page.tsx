@@ -7,6 +7,7 @@ import {
   getWardrobe,
   saveToWardrobe,
   deleteFromWardrobe,
+  getImageSrc,
 } from "@/lib/wardrobe";
 import CoordinateModal from "@/components/coordinate-modal";
 
@@ -34,13 +35,17 @@ export default function Home() {
       : wardrobe.filter((item) => item.item_type === selectedCategory);
 
   useEffect(() => {
-    // 기존 "바지" 데이터를 "하의"로 마이그레이션
+    // 기존 "바지" → "하의" 마이그레이션 + 구버전 image_base64 전용 데이터 호환 처리
     const raw = localStorage.getItem("core-d-wardrobe");
     if (raw) {
-      type RawItem = Omit<WardrobeItem, "item_type"> & { item_type: string };
+      type RawItem = Omit<WardrobeItem, "item_type" | "image_url"> & {
+        item_type: string;
+        image_url?: string | null;
+      };
       const items: RawItem[] = JSON.parse(raw);
       const migrated: WardrobeItem[] = items.map((item) => ({
         ...item,
+        image_url: item.image_url ?? null,
         item_type: (item.item_type === "바지" ? "하의" : item.item_type) as WardrobeItem["item_type"],
       }));
       localStorage.setItem("core-d-wardrobe", JSON.stringify(migrated));
@@ -78,7 +83,8 @@ export default function Home() {
         if (data.success) {
           const newItem: WardrobeItem = {
             id: crypto.randomUUID(),
-            image_base64: data.processed_image_base64,
+            image_url: data.image_url ?? null,
+            image_base64: data.image_url ? null : (data.processed_image_base64 ?? null),
             item_type: data.item_type as WardrobeItem["item_type"],
             created_at: new Date().toISOString(),
           };
@@ -173,7 +179,7 @@ export default function Home() {
                 {/* 배경 제거 이미지 */}
                 <div className="flex aspect-square items-center justify-center overflow-hidden rounded-t-2xl bg-gray-50 p-2">
                   <img
-                    src={`data:image/png;base64,${item.image_base64}`}
+                    src={getImageSrc(item)}
                     alt={item.item_type}
                     className="h-full max-h-32 w-auto object-contain"
                   />

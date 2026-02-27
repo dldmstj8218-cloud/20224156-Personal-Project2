@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
-import { WardrobeItem } from "@/lib/wardrobe";
+import { WardrobeItem, getImageSrc } from "@/lib/wardrobe";
 
 const AESTHETICS = ["모리걸", "고프코어", "발레코어", "올드머니", "긱시크"];
 const PERSONAL_COLORS = ["봄 웜", "여름 쿨", "가을 웜", "겨울 쿨"];
@@ -24,12 +24,14 @@ export default function CoordinateModal({ item, wardrobe, onClose }: Props) {
       "core-d-coordinate",
       JSON.stringify({
         selected_item: {
-          image_base64: item.image_base64,
+          image_url: item.image_url ?? null,
+          image_base64: item.image_base64 ?? null,
           item_type: item.item_type,
         },
         wardrobe_items: wardrobe.map((w) => ({
           id: w.id,
-          image_base64: w.image_base64,
+          image_url: w.image_url ?? null,
+          image_base64: w.image_base64 ?? null,
           item_type: w.item_type,
         })),
         aesthetic,
@@ -64,7 +66,7 @@ export default function CoordinateModal({ item, wardrobe, onClose }: Props) {
         <div className="mb-5 flex items-center gap-4 rounded-xl border border-gray-200 bg-gray-50 p-3">
           <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white">
             <img
-              src={`data:image/png;base64,${item.image_base64}`}
+              src={getImageSrc(item)}
               alt={item.item_type}
               className="h-full w-auto object-contain"
             />
