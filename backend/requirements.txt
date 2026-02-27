@@ -1,0 +1,29 @@
+# FastAPI & Server
+fastapi==0.115.6
+python-dotenv>=1.0.0
+uvicorn[standard]==0.34.0
+
+# Validation & Schema
+pydantic==2.10.3
+pydantic-settings==2.6.1
+
+# AI/ML - Image processing
+rembg>=2.0.62
+pillow==11.0.0
+onnxruntime>=1.16.0  # rembg 의존성 (배경 제거 모델 실행)
+
+# AI - Style recommendation (Gemini)
+google-generativeai>=0.8.0
+
+# Supabase
+supabase==2.10.0
+
+# Async HTTP (supabase/openai 호환 버전)
+httpx>=0.26,<0.28
+
+# Image color extraction (TODO: 옷 이미지 색상 분석)
+# colorsys, PIL 기본 내장 사용 또는 colorthief 등 추가 검토
+
+# YouTube 트렌드 분석
+youtube-search-python>=1.6.6
+youtube-transcript-api>=1.0.0
