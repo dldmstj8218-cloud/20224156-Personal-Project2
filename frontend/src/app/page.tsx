@@ -40,7 +40,7 @@ export default function Home() {
       const items = JSON.parse(raw);
       const migrated = items.map((item: WardrobeItem) => ({
         ...item,
-        item_type: item.item_type === "바지" ? "하의" : item.item_type,
+        item_type: (item.item_type as string) === "바지" ? "하의" : item.item_type,
       }));
       localStorage.setItem("core-d-wardrobe", JSON.stringify(migrated));
     }
